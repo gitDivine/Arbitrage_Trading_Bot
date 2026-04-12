@@ -299,7 +299,7 @@ export class Scanner {
           if (price) {
             this.updatePriceCache(dex.name, pair.tokenOut, price);
             const liquidityStr = isV3 ? 'V3 Pool' : `$${liquidityBase.toLocaleString()} ${pair.baseToken === CONFIG.tokens.USDC ? 'USDC' : 'WETH'}`;
-            this.logger.success('Scanner', `Initialized ${dex.name} for ${pair.name} (${liquidityStr})`);
+            this.logger.info('Scanner', `Initialized ${dex.name} for ${pair.name} (${liquidityStr})`);
           }
         }
       } catch (e: any) {
