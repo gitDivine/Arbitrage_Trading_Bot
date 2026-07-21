@@ -88,6 +88,24 @@ Swap detected → Batch Quote via Multicall3 (Low RPC usage)
 | `TELEGRAM_BOT_TOKEN` | No | Telegram alerts |
 | `TELEGRAM_CHAT_ID` | No | Telegram alerts |
 
+## Multi-Chain VPS Deployment Architecture
+
+For 24/7 operation alongside the `bots-manager`, the standard deployment pattern is to clone this repository into two separate directories—one for Base, one for Arbitrum:
+
+```bash
+# 1. Clone the Base instance
+git clone https://github.com/gitDivine/base-arb-bot.git base-arb-bot
+cd base-arb-bot
+cp .env.example .env # Configure for Base
+
+# 2. Clone the Arbitrum instance
+cd ~
+git clone https://github.com/gitDivine/base-arb-bot.git arb-arb-bot
+cd arb-arb-bot
+cp .env.example .env # Configure for Arbitrum
+```
+This isolates their `.env` files and logs, allowing the `bots-manager` to safely control both processes simultaneously.
+
 ## Advanced Deployment
 
 See [ADVANCED.md](ADVANCED.md) for manual Remix deployment, VPS hosting with PM2, and Railway.app cloud deployment.
