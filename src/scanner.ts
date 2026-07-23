@@ -74,6 +74,10 @@ export class Scanner {
   private highAlertUntil = 0; // Timestamp — high-alert mode active until this time
   private highAlertAsset = ''; // Which oracle asset triggered high-alert
 
+  // Dynamic Thresholding State
+  private dynamicMinProfitBps: number = CONFIG.arb.minProfitBps;
+  private recentPositiveGaps: number[] = [];
+
   private metrics: MetricsCollector;
 
   constructor(private wallet: WalletManager, private logger: Logger, private rateLimiter: RateLimiter, metrics?: MetricsCollector) {
@@ -394,8 +398,22 @@ export class Scanner {
 
     if (bestGap > 500) return; // Skip outlier
 
+    // --- Dynamic Thresholding Logic ---
+    if (netGap > 0) {
+      this.recentPositiveGaps.push(netGap);
+      if (this.recentPositiveGaps.length > 50) this.recentPositiveGaps.shift(); // Keep last 50
+      
+      // Calculate 75th percentile to track market strength
+      const sortedGaps = [...this.recentPositiveGaps].sort((a, b) => a - b);
+      const p75 = sortedGaps[Math.floor(sortedGaps.length * 0.75)];
+      
+      // Bound the dynamic threshold between the configured floor and 80% of p75
+      const dynamicTarget = p75 * 0.8;
+      this.dynamicMinProfitBps = Math.max(CONFIG.arb.minProfitBps, dynamicTarget);
+    }
+
     // Record gap metrics (every evaluation, not just those that pass)
-    const passedThreshold = netGap >= CONFIG.arb.minProfitBps;
+    const passedThreshold = netGap >= this.dynamicMinProfitBps;
     this.metrics.recordGap(bestGap, netGap, passedThreshold);
 
     if (passedThreshold) {
@@ -551,7 +569,12 @@ export class Scanner {
               const realProfit = Number(ethers.formatUnits(finalBaseAssetAfterSwap, baseDecimals)) - currentFlashAmount;
               const realGapBps = (realProfit / currentFlashAmount) * 10000;
 
-              if (realProfit >= CONFIG.arb.minProfitUsdc) {
+              // Convert dynamic bps to base currency based on flash loan size
+              const dynamicMinProfitAsset = (currentFlashAmount * this.dynamicMinProfitBps) / 10000;
+              const configuredMinProfitAsset = isUsdc ? CONFIG.arb.minProfitUsdc : (CONFIG.arb.minProfitUsdc / 3000); // Rough ETH proxy if needed, but minProfitUsdc is used generically
+              const effectiveMinProfitAsset = Math.max(CONFIG.arb.minProfitUsdc, dynamicMinProfitAsset);
+
+              if (realProfit >= effectiveMinProfitAsset) {
                 const opp: ArbOpportunity = {
                   tokenOut: q.pair.tokenOut,
                   tokenName: q.pair.name,
