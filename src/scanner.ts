@@ -504,18 +504,27 @@ export class Scanner {
       const batchSize = 10;
       const batch = this.quoteQueue.splice(0, batchSize);
       
-      const leg1Requests = batch.map(q => {
+      const sizeFactors = [1.0, 0.5, 0.25, 0.1]; // Try down to 10% ($100) for thin pools
+      
+      const leg1Requests = [];
+      for (const q of batch) {
         const isUsdc = q.baseAsset.toLowerCase() === CONFIG.tokens.USDC.toLowerCase();
         const flashAmount = isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth;
         const dexName = q.direction === 1 ? q.surface.dex1 : q.surface.dex2;
-        return {
-          dexName,
-          tokenIn: q.baseAsset,
-          tokenOut: q.pair.tokenOut,
-          amountIn: ethers.parseUnits(flashAmount.toString(), isUsdc ? 6 : 18),
-          fee: this.getActualFee(dexName, q.pair.tokenOut, q.pair.fee)
+        
+        for (const factor of sizeFactors) {
+          const currentFlashAmount = flashAmount * factor;
+          leg1Requests.push({
+            q,
+            factor,
+            dexName,
+            tokenIn: q.baseAsset,
+            tokenOut: q.pair.tokenOut,
+            amountIn: ethers.parseUnits(currentFlashAmount.toString(), isUsdc ? 6 : 18),
+            fee: this.getActualFee(dexName, q.pair.tokenOut, q.pair.fee)
+          });
         }
-      });
+      }
 
       const leg1Quotes = await this.batchGetQuotes(leg1Requests);
 
@@ -523,114 +532,116 @@ export class Scanner {
       leg1Quotes.forEach(q => this.metrics.recordQuote(q !== null));
 
       // Step 2: Filter valid ones and batch for second legs
-      const validForLeg2 = batch.map((q, i) => ({ ...q, quote1: leg1Quotes[i] })).filter(q => q.quote1);
-      
-      if (validForLeg2.length > 0) {
-        const leg2Requests = validForLeg2.map(q => {
-          const dexName = q.direction === 1 ? q.surface.dex2 : q.surface.dex1;
-          return {
+      const validForLeg2 = [];
+      const leg2Requests = [];
+
+      for (let i = 0; i < leg1Requests.length; i++) {
+        if (leg1Quotes[i]) {
+          const req = leg1Requests[i];
+          validForLeg2.push({ req, quote1: leg1Quotes[i] });
+          const dexName = req.q.direction === 1 ? req.q.surface.dex2 : req.q.surface.dex1;
+          leg2Requests.push({
             dexName,
-            tokenIn: q.pair.tokenOut,
-            tokenOut: q.baseAsset,
-            amountIn: q.quote1,
-            fee: this.getActualFee(dexName, q.pair.tokenOut, q.pair.fee)
-          };
-        });
-
-        const leg2Quotes = await this.batchGetQuotes(leg2Requests);
+            tokenIn: req.q.pair.tokenOut,
+            tokenOut: req.q.baseAsset,
+            amountIn: leg1Quotes[i],
+            fee: this.getActualFee(dexName, req.q.pair.tokenOut, req.q.pair.fee)
+          });
+        }
+      }
+      
+      let leg2Quotes: any[] = [];
+      if (leg2Requests.length > 0) {
+        leg2Quotes = await this.batchGetQuotes(leg2Requests);
         leg2Quotes.forEach(q => this.metrics.recordQuote(q !== null));
+      }
 
-        // Step 3: Final evaluation & Parallel Dynamic Search 🔍⚡
-        for (let i = 0; i < validForLeg2.length; i++) {
-          const q = validForLeg2[i];
+      // Step 3: Final evaluation & Parallel Dynamic Search 🔍⚡
+      const groupedResults = new Map();
+
+      for (let i = 0; i < validForLeg2.length; i++) {
+        const { req } = validForLeg2[i];
+        const { q, factor } = req;
+        const q2 = leg2Quotes[i];
+
+        if (!groupedResults.has(q)) {
+            groupedResults.set(q, []);
+        }
+        
+        try {
           const isUsdc = q.baseAsset.toLowerCase() === CONFIG.tokens.USDC.toLowerCase();
           const baseDecimals = await this.getDecimals(q.baseAsset);
-          
-          const sizeFactors = [1.0, 0.5, 0.25, 0.1]; // Try down to 10% ($100) for thin pools
+          const flashAmount = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * factor;
 
-          const results = [];
-          for (const factor of sizeFactors) {
-            try {
-              const currentFlashAmount = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * factor;
-              let finalBaseAssetAfterSwap = BigInt(0);
-
-              if (factor === 1.0) {
-                finalBaseAssetAfterSwap = leg2Quotes[i];
-              } else {
-                const amountInBig = ethers.parseUnits(currentFlashAmount.toString(), isUsdc ? 6 : 18);
-                const buyDex = q.direction === 1 ? q.surface.dex1 : q.surface.dex2;
-                const sellDex = q.direction === 1 ? q.surface.dex2 : q.surface.dex1;
-                const q1 = await this.getOnChainQuote(buyDex, q.baseAsset, q.pair.tokenOut, amountInBig, this.getActualFee(buyDex, q.pair.tokenOut, q.pair.fee));
-                if (!q1) { results.push({ opp: null, factor, realProfit: -Infinity, quoted: false }); continue; }
-                
-                // Add a small delay between dependent RPC calls to prevent 429s on public nodes
-                await new Promise(r => setTimeout(r, 50));
-                
-                const q2 = await this.getOnChainQuote(sellDex, q.pair.tokenOut, q.baseAsset, q1, this.getActualFee(sellDex, q.pair.tokenOut, q.pair.fee));
-                if (!q2) { results.push({ opp: null, factor, realProfit: -Infinity, quoted: false }); continue; }
-                finalBaseAssetAfterSwap = q2;
-              }
-
-              const realProfit = Number(ethers.formatUnits(finalBaseAssetAfterSwap, baseDecimals)) - currentFlashAmount;
-              const realGapBps = (realProfit / currentFlashAmount) * 10000;
-
-              // Convert dynamic bps to base currency based on flash loan size
-              const dynamicMinProfitAsset = (currentFlashAmount * this.dynamicMinProfitBps) / 10000;
-              const configuredMinProfitAsset = isUsdc ? CONFIG.arb.minProfitUsdc : '0.000003'; // Use string/number that matches ~$0.01 WETH
-              const effectiveMinProfitAsset = Math.max(Number(configuredMinProfitAsset), dynamicMinProfitAsset);
-
-              if (realProfit >= effectiveMinProfitAsset) {
-                const opp: ArbOpportunity = {
-                  tokenOut: q.pair.tokenOut,
-                  tokenName: q.pair.name,
-                  leg1: q.leg1,
-                  leg2: q.leg2,
-                  gapBps: Math.round(realGapBps),
-                  flashAmount: currentFlashAmount,
-                  estimatedProfit: realProfit,
-                  timestamp: Date.now(),
-                  flashAsset: q.baseAsset
-                };
-
-                const isSuccess = await this.simulateOpportunity(opp);
-                if (isSuccess) { results.push({ opp, factor, realProfit, quoted: true }); continue; }
-              }
-              results.push({ opp: null, factor, realProfit, quoted: true });
-            } catch {
-              results.push({ opp: null, factor, realProfit: -Infinity, quoted: false });
-            }
+          if (!q2) {
+            groupedResults.get(q).push({ opp: null, factor, realProfit: -Infinity, quoted: false });
+            continue;
           }
 
-          // Pick the result with the highest absolute profit that passed simulation
-          const bestResult = results
-            .filter(r => r.opp !== null)
-            .sort((a, b) => b.realProfit - a.realProfit)[0];
+          const realProfit = Number(ethers.formatUnits(q2, baseDecimals)) - flashAmount;
+          const realGapBps = (realProfit / flashAmount) * 10000;
 
-          if (bestResult && bestResult.opp) {
-            const sizeLabel = bestResult.factor === 1.0 ? 'FULL' : `${bestResult.factor * 100}%`;
-            this.logger.success('Scanner', `🎯 Optimal Size [${sizeLabel}]: ${q.pair.name} | $${bestResult.realProfit.toFixed(2)} (${bestResult.opp.gapBps}bps)`);
-            this.hitsToday++;
-            this.phantomStrikes.set(q.pair.tokenOut, 0); // Reset strikes on success
-            this.logger.opportunity(bestResult.opp);
-            if (this.opportunityCallback) this.opportunityCallback(bestResult.opp);
-          } else {
-            // Diagnostic: show the best near-miss across all sizes
-            const quotedResults = results.filter(r => r.quoted && r.realProfit > -Infinity);
-            // Track phantom strike
-            const currentStrikes = (this.phantomStrikes.get(q.pair.tokenOut) || 0) + 1;
-            this.phantomStrikes.set(q.pair.tokenOut, currentStrikes);
+          const dynamicMinProfitAsset = (flashAmount * this.dynamicMinProfitBps) / 10000;
+          const configuredMinProfitAsset = isUsdc ? CONFIG.arb.minProfitUsdc : '0.000003';
+          const effectiveMinProfitAsset = Math.max(Number(configuredMinProfitAsset), dynamicMinProfitAsset);
 
-            if (quotedResults.length > 0) {
-              const best = quotedResults.sort((a, b) => b.realProfit - a.realProfit)[0];
-              const sizeLabel = best.factor === 1.0 ? 'FULL' : `${best.factor * 100}%`;
-              const flashAmt = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * best.factor;
-              const nearBps = (best.realProfit / flashAmt) * 10000;
-              this.metrics.recordNearMiss(q.pair.name, sizeLabel, best.realProfit, nearBps);
-              const strikeInfo = currentStrikes >= 3 ? ` [strike ${currentStrikes}/${this.PHANTOM_STRIKE_LIMIT}]` : '';
-              this.logger.warn('Scanner', `Near-miss: ${q.pair.name} [${sizeLabel}] | $${best.realProfit.toFixed(4)} (${nearBps.toFixed(1)}bps)${strikeInfo}`);
-            } else {
-              this.logger.warn('Scanner', `❌ Quote fail: ${q.pair.name} | All sizes failed [strike ${currentStrikes}/${this.PHANTOM_STRIKE_LIMIT}]`);
+          if (realProfit >= effectiveMinProfitAsset) {
+            const opp: ArbOpportunity = {
+              tokenOut: q.pair.tokenOut,
+              tokenName: q.pair.name,
+              leg1: q.leg1,
+              leg2: q.leg2,
+              gapBps: Math.round(realGapBps),
+              flashAmount: flashAmount,
+              estimatedProfit: realProfit,
+              timestamp: Date.now(),
+              flashAsset: q.baseAsset
+            };
+
+            const isSuccess = await this.simulateOpportunity(opp);
+            if (isSuccess) {
+              groupedResults.get(q).push({ opp, factor, realProfit, quoted: true });
+              continue;
             }
+          }
+          groupedResults.get(q).push({ opp: null, factor, realProfit, quoted: true });
+        } catch {
+          groupedResults.get(q).push({ opp: null, factor, realProfit: -Infinity, quoted: false });
+        }
+      }
+
+      for (const q of batch) {
+        const results = groupedResults.get(q) || [];
+        
+        // Pick the result with the highest absolute profit that passed simulation
+        const bestResult = results
+          .filter((r: any) => r.opp !== null)
+          .sort((a: any, b: any) => b.realProfit - a.realProfit)[0];
+
+        if (bestResult && bestResult.opp) {
+          const sizeLabel = bestResult.factor === 1.0 ? 'FULL' : `${bestResult.factor * 100}%`;
+          this.logger.success('Scanner', `🎯 Optimal Size [${sizeLabel}]: ${q.pair.name} | $${bestResult.realProfit.toFixed(2)} (${bestResult.opp.gapBps}bps)`);
+          this.hitsToday++;
+          this.phantomStrikes.set(q.pair.tokenOut, 0); // Reset strikes on success
+          this.logger.opportunity(bestResult.opp);
+          if (this.opportunityCallback) this.opportunityCallback(bestResult.opp);
+        } else {
+          // Diagnostic: show the best near-miss across all sizes
+          const isUsdc = q.baseAsset.toLowerCase() === CONFIG.tokens.USDC.toLowerCase();
+          const quotedResults = results.filter((r: any) => r.quoted && r.realProfit > -Infinity);
+          const currentStrikes = (this.phantomStrikes.get(q.pair.tokenOut) || 0) + 1;
+          this.phantomStrikes.set(q.pair.tokenOut, currentStrikes);
+
+          if (quotedResults.length > 0) {
+            const best = quotedResults.sort((a: any, b: any) => b.realProfit - a.realProfit)[0];
+            const sizeLabel = best.factor === 1.0 ? 'FULL' : `${best.factor * 100}%`;
+            const flashAmt = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * best.factor;
+            const nearBps = (best.realProfit / flashAmt) * 10000;
+            this.metrics.recordNearMiss(q.pair.name, sizeLabel, best.realProfit, nearBps);
+            const strikeInfo = currentStrikes >= 3 ? ` [strike ${currentStrikes}/${this.PHANTOM_STRIKE_LIMIT}]` : '';
+            this.logger.warn('Scanner', `Near-miss: ${q.pair.name} [${sizeLabel}] | $${best.realProfit.toFixed(4)} (${nearBps.toFixed(1)}bps)${strikeInfo}`);
+          } else {
+            this.logger.warn('Scanner', `❌ Quote fail: ${q.pair.name} | All sizes failed [strike ${currentStrikes}/${this.PHANTOM_STRIKE_LIMIT}]`);
           }
         }
       }
