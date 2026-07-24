@@ -7,15 +7,14 @@ import * as path from 'path';
 require('dotenv').config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
-const RPC_URL = process.env.BASE_HTTP_URL || '';
+const RPC_URL = process.env.ARB_HTTP_URL || 'https://arb1.arbitrum.io/rpc';
 
 if (!PRIVATE_KEY || PRIVATE_KEY === 'your_private_key_here') {
     console.error('❌ Set PRIVATE_KEY in your .env file first');
     process.exit(1);
 }
-if (!RPC_URL || RPC_URL.includes('YOUR_KEY')) {
-    console.error('❌ Set ARB_HTTP_URL in your .env file first');
-    process.exit(1);
+if (!RPC_URL || RPC_URL.includes('mainnet.base.org')) {
+    console.warn('⚠️ Warning: Using default Arbitrum RPC or Base RPC mismatch. Please verify ARB_HTTP_URL.');
 }
 
 async function main() {

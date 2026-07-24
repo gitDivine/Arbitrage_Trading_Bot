@@ -548,7 +548,8 @@ export class Scanner {
           
           const sizeFactors = [1.0, 0.5, 0.25, 0.1]; // Try down to 10% ($100) for thin pools
 
-          const results = await Promise.all(sizeFactors.map(async (factor) => {
+          const results = [];
+          for (const factor of sizeFactors) {
             try {
               const currentFlashAmount = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * factor;
               let finalBaseAssetAfterSwap = BigInt(0);
@@ -560,9 +561,13 @@ export class Scanner {
                 const buyDex = q.direction === 1 ? q.surface.dex1 : q.surface.dex2;
                 const sellDex = q.direction === 1 ? q.surface.dex2 : q.surface.dex1;
                 const q1 = await this.getOnChainQuote(buyDex, q.baseAsset, q.pair.tokenOut, amountInBig, this.getActualFee(buyDex, q.pair.tokenOut, q.pair.fee));
-                if (!q1) return { opp: null, factor, realProfit: -Infinity, quoted: false };
+                if (!q1) { results.push({ opp: null, factor, realProfit: -Infinity, quoted: false }); continue; }
+                
+                // Add a small delay between dependent RPC calls to prevent 429s on public nodes
+                await new Promise(r => setTimeout(r, 50));
+                
                 const q2 = await this.getOnChainQuote(sellDex, q.pair.tokenOut, q.baseAsset, q1, this.getActualFee(sellDex, q.pair.tokenOut, q.pair.fee));
-                if (!q2) return { opp: null, factor, realProfit: -Infinity, quoted: false };
+                if (!q2) { results.push({ opp: null, factor, realProfit: -Infinity, quoted: false }); continue; }
                 finalBaseAssetAfterSwap = q2;
               }
 
@@ -588,13 +593,13 @@ export class Scanner {
                 };
 
                 const isSuccess = await this.simulateOpportunity(opp);
-                if (isSuccess) return { opp, factor, realProfit, quoted: true };
+                if (isSuccess) { results.push({ opp, factor, realProfit, quoted: true }); continue; }
               }
-              return { opp: null, factor, realProfit, quoted: true };
+              results.push({ opp: null, factor, realProfit, quoted: true });
             } catch {
-              return { opp: null, factor, realProfit: -Infinity, quoted: false };
+              results.push({ opp: null, factor, realProfit: -Infinity, quoted: false });
             }
-          }));
+          }
 
           // Pick the result with the highest absolute profit that passed simulation
           const bestResult = results
