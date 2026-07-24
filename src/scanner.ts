@@ -642,7 +642,8 @@ export class Scanner {
 
       // We use staticCall to simulate the transaction for $0 gas
       const isUsdc = opp.flashAsset.toLowerCase() === CONFIG.tokens.USDC.toLowerCase();
-      const minProfitWei = ethers.parseUnits(CONFIG.arb.minProfitUsdc.toString(), isUsdc ? 6 : 18);
+      const minProfitAmount = isUsdc ? CONFIG.arb.minProfitUsdc.toString() : '0.000003'; // 0.000003 WETH ~= $0.01
+      const minProfitWei = ethers.parseUnits(minProfitAmount, isUsdc ? 6 : 18);
       await this.botContract.startArbitrage.staticCall(
         opp.flashAsset,
         opp.tokenOut,
@@ -1051,12 +1052,48 @@ export class Scanner {
   private startReconnectWatchdog(): void {
     setInterval(async () => {
       try {
+        const wsSilentSec = (Date.now() - this.lastWsEvent) / 1000;
+        if (wsSilentSec > 300 && this.poolMeta.length > 0) {
+          throw new Error(`WS silent for ${Math.round(wsSilentSec)}s — subscription dropped`);
+        }
         await this.wallet.provider.getBlockNumber();
-      } catch {
-        this.logger.warn('Scanner', 'WS disconnected — reconnecting...');
+      } catch (e: any) {
+        this.logger.warn('Scanner', `WS connection unhealthy (${e.message}) — reconnecting...`);
         this.wallet.reconnectWs();
-        await this.start();
+        this.lastWsEvent = Date.now(); // Reset to avoid immediate re-throw
+        await this.reconnect();
       }
     }, 30000);
+  }
+
+  private async reconnect(): Promise<void> {
+    this.logger.warn('Scanner', 'Re-attaching event listeners to new WS provider...');
+    let attached = 0;
+    for (const meta of this.poolMeta) {
+      const topic = (meta.type === DexType.UNISWAP_V3 || meta.type === DexType.ALGEBRA)
+        ? ethers.id('Swap(address,address,int256,int256,uint160,uint128,int24)')
+        : (meta.type === DexType.SOLIDLY
+          ? ethers.id('Swap(address,address,uint256,uint256,uint256,uint256)')
+          : ethers.id('Swap(address,uint256,uint256,uint256,uint256,address)'));
+
+      this.wallet.provider.on({ address: meta.poolAddr, topics: [topic] }, async () => {
+        this.lastWsEvent = Date.now();
+        try {
+          const price = await this.fetchPrice(meta.dexName, meta.type, meta.poolAddr, meta.pair.tokenOut, meta.pair.baseToken);
+          if (price) {
+            const oldPrice = PRICE_CACHE.get(meta.dexName)?.get(meta.pair.tokenOut);
+            if (price !== oldPrice) {
+              this.updatePriceCache(meta.dexName, meta.pair.tokenOut, price);
+              this.metrics.recordPriceUpdate();
+              this.checkSurfaces(meta.pair.tokenOut);
+            }
+          }
+        } catch (err: any) {
+          this.logger.error('Scanner', `Price Update Error [${meta.dexName}]: ${err.message}`);
+        }
+      });
+      attached++;
+    }
+    this.logger.success('Scanner', `Successfully re-attached ${attached} subscriptions`);
   }
 }
