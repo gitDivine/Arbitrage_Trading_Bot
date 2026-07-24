@@ -24,7 +24,7 @@ const CONFIG_BY_CHAIN: any = {
     dexes: {
       uniswapV3Router: { address: addr('0x2626664c2603336E57B271c5C0b26F421741e481'), dexType: 'uniswapV3' },
       uniswapV3Factory: { address: addr('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'), dexType: 'uniswapV3' },
-      uniswapV3QuoterV2: { address: addr('0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997'), dexType: 'uniswapV3' },
+      uniswapV3QuoterV2: { address: addr('0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'), dexType: 'uniswapV3' },
       aerodromeRouter: { address: addr('0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43'), dexType: 'aerodrome' },
       aerodromeFactory: { address: addr('0x420DD381b31aEf6683db6B902084cB0FFECe40Da'), dexType: 'aerodrome' },
       // Intra-DEX virtual DEXes — same router/factory, fee-locked
