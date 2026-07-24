@@ -23,7 +23,7 @@ async function withdraw(): Promise<void> {
     const balance = await contract.getBalance(address);
     if (balance > 0n) {
       // Create a temporary ERC20 contract to get decimals
-      const erc20 = new ethers.Contract(address, ['function decimals() view returns (uint8)'], provider);
+      const erc20 = new ethers.Contract(address as string, ['function decimals() view returns (uint8)'], provider);
       const decimals = await erc20.decimals();
 
       const formatted = parseFloat(ethers.formatUnits(balance, decimals)).toFixed(4);
