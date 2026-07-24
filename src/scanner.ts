@@ -501,7 +501,7 @@ export class Scanner {
     this.isProcessingQueue = true;
 
     try {
-      const batchSize = 10;
+      const batchSize = 2;
       const batch = this.quoteQueue.splice(0, batchSize);
       
       const sizeFactors = [1.0, 0.5, 0.25, 0.1]; // Try down to 10% ($100) for thin pools
