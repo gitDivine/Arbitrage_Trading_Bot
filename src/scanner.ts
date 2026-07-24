@@ -571,8 +571,8 @@ export class Scanner {
 
               // Convert dynamic bps to base currency based on flash loan size
               const dynamicMinProfitAsset = (currentFlashAmount * this.dynamicMinProfitBps) / 10000;
-              const configuredMinProfitAsset = isUsdc ? CONFIG.arb.minProfitUsdc : (CONFIG.arb.minProfitUsdc / 3000); // Rough ETH proxy if needed, but minProfitUsdc is used generically
-              const effectiveMinProfitAsset = Math.max(CONFIG.arb.minProfitUsdc, dynamicMinProfitAsset);
+              const configuredMinProfitAsset = isUsdc ? CONFIG.arb.minProfitUsdc : '0.000003'; // Use string/number that matches ~$0.01 WETH
+              const effectiveMinProfitAsset = Math.max(Number(configuredMinProfitAsset), dynamicMinProfitAsset);
 
               if (realProfit >= effectiveMinProfitAsset) {
                 const opp: ArbOpportunity = {
@@ -587,10 +587,8 @@ export class Scanner {
                   flashAsset: q.baseAsset
                 };
 
-                this.metrics.recordSimulation(true);
                 const isSuccess = await this.simulateOpportunity(opp);
                 if (isSuccess) return { opp, factor, realProfit, quoted: true };
-                this.metrics.recordSimulation(false);
               }
               return { opp: null, factor, realProfit, quoted: true };
             } catch {
