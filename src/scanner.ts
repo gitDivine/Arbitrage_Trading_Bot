@@ -507,7 +507,7 @@ export class Scanner {
       const batchSize = 2;
       const batch = this.quoteQueue.splice(0, batchSize);
       
-      const sizeFactors = [1.0, 0.5, 0.25, 0.1]; // Try down to 10% ($100) for thin pools
+      const sizeFactors = [1.0, 0.5, 0.25, 0.1, 0.05, 0.025]; // Try down to 2.5% ($25) for thin weekend pools
       
       const leg1Requests = [];
       for (const q of batch) {

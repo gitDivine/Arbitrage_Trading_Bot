@@ -162,7 +162,7 @@ export const CONFIG = {
     flashLoanAmountUsdc: 1000, // $1,000 USDC — 10x more profit per gap
     flashLoanAmountWeth: 0.5,  // ~0.5 WETH ($1,750) — 10x more profit per gap
     minProfitUsdc: 0.01, // $0.01 net profit — any real profit after all costs
-    minProfitBps: 5.0,   // 5bps gap — lower threshold since fee-aware gap calc now accurate
+    minProfitBps: 2.0,   // 2bps gap — lower threshold for low-gas L2 execution (Base/Arbitrum)
     flashFee: 0.0005,
     cooldownMs: 1000,
     maxGasGwei: 50.0,
