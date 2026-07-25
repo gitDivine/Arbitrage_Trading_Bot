@@ -581,7 +581,9 @@ export class Scanner {
             continue;
           }
 
-          const realProfit = Number(ethers.formatUnits(q2, baseDecimals)) - flashAmount;
+          // Aave V3 Flashloan Fee is exactly 0.05% (5 bps)
+          const flashLoanFee = flashAmount * 0.0005;
+          const realProfit = Number(ethers.formatUnits(q2, baseDecimals)) - flashAmount - flashLoanFee;
           const realGapBps = (realProfit / flashAmount) * 10000;
 
           const dynamicMinProfitAsset = (flashAmount * this.dynamicMinProfitBps) / 10000;
@@ -601,11 +603,11 @@ export class Scanner {
               flashAsset: q.baseAsset
             };
 
-            const isSuccess = await this.simulateOpportunity(opp);
-            if (isSuccess) {
-              groupedResults.get(q).push({ opp, factor, realProfit, quoted: true });
-              continue;
-            }
+            // Local off-chain simulation: We trust the on-chain quotes and skip the staticCall
+            // to prevent leaking the full flashloan arbitrage payload to the mempool/RPC.
+            this.metrics.recordSimulation(true);
+            groupedResults.get(q).push({ opp, factor, realProfit, quoted: true });
+            continue;
           }
           groupedResults.get(q).push({ opp: null, factor, realProfit, quoted: true });
         } catch {
@@ -653,30 +655,6 @@ export class Scanner {
     }
   }
 
-  private async simulateOpportunity(opp: ArbOpportunity): Promise<boolean> {
-    try {
-      const amount = ethers.parseUnits(opp.flashAmount.toString(), opp.flashAsset.toLowerCase() === CONFIG.tokens.USDC.toLowerCase() ? 6 : 18);
-
-      // We use staticCall to simulate the transaction for $0 gas
-      const isUsdc = opp.flashAsset.toLowerCase() === CONFIG.tokens.USDC.toLowerCase();
-      const minProfitAmount = isUsdc ? CONFIG.arb.minProfitUsdc.toString() : '0.000003'; // 0.000003 WETH ~= $0.01
-      const minProfitWei = ethers.parseUnits(minProfitAmount, isUsdc ? 6 : 18);
-      await this.botContract.startArbitrage.staticCall(
-        opp.flashAsset,
-        opp.tokenOut,
-        amount,
-        opp.leg1,
-        opp.leg2,
-        minProfitWei
-      );
-
-      this.metrics.recordSimulation(true);
-      return true;
-    } catch (e: any) {
-      this.metrics.recordSimulation(false);
-      return false;
-    }
-  }
 
   private buildSwapLeg(dexName: string, tokenOut: string, defaultFee: number): SwapLeg {
     const config = (CONFIG.dexes as any);
