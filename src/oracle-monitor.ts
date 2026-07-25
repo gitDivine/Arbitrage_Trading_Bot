@@ -58,11 +58,11 @@ export class OracleMonitor {
   private totalDeviations = 0;
 
   constructor(
-    private provider: ethers.Provider,
+    private getProvider: () => ethers.Provider,
     private logger: Logger,
     private dexPriceGetter: (tokenAddress: string) => number | undefined,
   ) {
-    this.multicall = new ethers.Contract(MULTICALL3_ADDR, MULTICALL3_ABI, provider);
+    this.multicall = new ethers.Contract(MULTICALL3_ADDR, MULTICALL3_ABI, getProvider());
     this.feeds = CONFIG.oracle?.feeds || [];
 
     if (this.feeds.length === 0) {
@@ -132,6 +132,13 @@ export class OracleMonitor {
   }
 
   private async pollOracles(): Promise<void> {
+    const currentProvider = this.getProvider();
+    if (this.multicall.runner !== currentProvider) {
+      this.logger.warn('Oracle', 'Provider reconnect detected — updating multicall & re-attaching WS feeds...');
+      this.multicall = new ethers.Contract(MULTICALL3_ADDR, MULTICALL3_ABI, currentProvider);
+      this.subscribeToUpdates();
+    }
+
     const iface = new ethers.Interface(AGGREGATOR_ABI);
     const calls = this.feeds.map(f => ({
       target: f.feedAddress,
@@ -231,9 +238,10 @@ export class OracleMonitor {
 
     if (!answerUpdatedTopic) return;
 
+    const currentProvider = this.getProvider();
     for (const feed of this.feeds) {
       try {
-        this.provider.on({ address: feed.feedAddress, topics: [answerUpdatedTopic] }, (log) => {
+        currentProvider.on({ address: feed.feedAddress, topics: [answerUpdatedTopic] }, (log) => {
           try {
             const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
             if (!parsed) return;

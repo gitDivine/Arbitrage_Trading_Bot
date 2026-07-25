@@ -79,7 +79,7 @@ async function startBot(retryCount = 0): Promise<void> {
     metrics.startReporting();
 
     // MEV Stage 1 — Chainlink Oracle Prediction
-    const oracle = new OracleMonitor(wallet.provider, logger, (tokenAddr) => scanner.getDexPrice(tokenAddr));
+    const oracle = new OracleMonitor(() => wallet.provider, logger, (tokenAddr) => scanner.getDexPrice(tokenAddr));
 
     oracle.onDeviation((event) => {
       if (event.predictedUpdate) {
