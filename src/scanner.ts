@@ -36,6 +36,9 @@ const ALGEBRA_POOL_ABI = [
   'function globalState() view returns (uint160 price, int24 tick, uint16 fee, uint16 timepointIndex, uint8 communityFeeToken0, uint8 communityFeeToken1, bool unlocked)',
   'function token0() view returns (address)',
 ];
+const ALGEBRA_QUOTER_ABI = [
+  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint256 amountIn, uint160 limitSqrtPrice) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
+];
 const ERC20_ABI = ['function decimals() view returns (uint8)'];
 
 // --- State ---
@@ -728,16 +731,23 @@ export class Scanner {
       
       if (dexName.includes('V3') || (dexName.includes('camelot') && CONFIG.chain.chainId === 42161) || (dexName.includes('ramses') && CONFIG.chain.chainId === 42161)) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
-        const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
-        const params = {
-          tokenIn,
-          tokenOut,
-          amountIn: amountInBig,
-          fee: fee,
-          sqrtPriceLimitX96: 0
-        };
-        const quote = await quoter.quoteExactInputSingle.staticCall(params);
-        return quote.amountOut;
+        
+        if (dexName.includes('camelot') || dexName.includes('ramses')) {
+          const quoter = new ethers.Contract(quoterAddr, ALGEBRA_QUOTER_ABI, this.wallet.provider);
+          const quote = await quoter.quoteExactInputSingle.staticCall(tokenIn, tokenOut, amountInBig, 0);
+          return quote.amountOut;
+        } else {
+          const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
+          const params = {
+            tokenIn,
+            tokenOut,
+            amountIn: amountInBig,
+            fee: fee,
+            sqrtPriceLimitX96: 0
+          };
+          const quote = await quoter.quoteExactInputSingle.staticCall(params);
+          return quote.amountOut;
+        }
       } 
       else if (dexName.includes('aerodrome') || dexName.includes('ramses')) {
         const routerAddr = (CONFIG.dexes as any)[`${dexName}Router`].address;
@@ -1073,6 +1083,7 @@ export class Scanner {
         await this.wallet.provider.getBlockNumber();
       } catch (e: any) {
         this.logger.warn('Scanner', `WS connection unhealthy (${e.message}) — reconnecting...`);
+        if (this.wallet.provider) this.wallet.provider.removeAllListeners();
         this.wallet.reconnectWs();
         this.lastWsEvent = Date.now(); // Reset to avoid immediate re-throw
         await this.reconnect();
