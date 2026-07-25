@@ -42,8 +42,9 @@ interface IAlgebraRouter {
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract ArbBot is IFlashLoanSimpleReceiver, Ownable, ReentrancyGuard {
+contract ArbBot is IFlashLoanSimpleReceiver, Ownable, ReentrancyGuard, Pausable {
     IAavePool  public immutable AAVE_POOL;
 
     enum DexType { UNISWAP_V2, UNISWAP_V3, SOLIDLY, ALGEBRA }
@@ -70,7 +71,7 @@ contract ArbBot is IFlashLoanSimpleReceiver, Ownable, ReentrancyGuard {
         SwapLeg calldata leg1, 
         SwapLeg calldata leg2, 
         uint256 minProfit
-    ) external onlyOwner {
+    ) external onlyOwner whenNotPaused {
         bytes memory params = abi.encode(flashAsset, tokenOut, leg1, leg2, minProfit);
         AAVE_POOL.flashLoanSimple(address(this), flashAsset, flashAmount, params, 0);
     }
@@ -100,6 +101,10 @@ contract ArbBot is IFlashLoanSimpleReceiver, Ownable, ReentrancyGuard {
         require(profit >= minProfit, "Insufficient profit");
         
         IERC20(flashAsset).approve(address(AAVE_POOL), repayAmount);
+        
+        if (profit > 0) {
+            IERC20(flashAsset).transfer(owner(), profit);
+        }
         
         emit ArbitrageExecuted(flashAsset, tokenOut, profit, leg1.router, leg2.router);
         return true;
@@ -172,6 +177,14 @@ contract ArbBot is IFlashLoanSimpleReceiver, Ownable, ReentrancyGuard {
         uint256 balance = address(this).balance;
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "ETH transfer failed");
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     receive() external payable {}
