@@ -164,12 +164,13 @@ export class Scanner {
   async start(): Promise<void> {
     this.logger.info('Scanner', 'Initializing multi-DEX monitor...');
 
-    for (const pair of CONFIG.scanner.watchPairs) {
+    for (const [index, pair] of CONFIG.scanner.watchPairs.entries()) {
       // For each token we watch, initialize pools on all DEXes
+      this.logger.info('Scanner', `[${index + 1}/${CONFIG.scanner.watchPairs.length}] Discovering pools for ${pair.name}...`);
       await this.initDexPools(pair);
     }
 
-    this.logger.success('Scanner', `Watching ${this.poolContracts.size} pools across ${CONFIG.chain.name}`);
+    this.logger.success('Scanner', `Watching ${this.poolContracts.size} pools across ${CONFIG.chain.name}. Bot is LIVE and actively scanning for arbitrage!`);
     this.startReconnectWatchdog();
     this.startPollingFallback();
   }

@@ -68,6 +68,9 @@ async function startBot(retryCount = 0): Promise<void> {
     // Discovery run
     await discovery.run();
 
+    // Notify Telegram immediately on startup so user knows bot is alive and initializing
+    logger.sendTelegram(`🚀 [${CONFIG.chain.name} Arb Bot] Starting up...\n👛 Wallet: ${wallet.signer.address.slice(0, 8)}...\n💰 Balances: ${ethBal.toFixed(4)} ETH | $${usdcBal.toFixed(2)} USDC\n📡 Scanning DEX pools for ${CONFIG.scanner.watchPairs.length} tokens (this takes ~1-2 mins on startup)...`);
+
     // Wire scanner → executor (with metrics tracking)
     scanner.onOpportunity(async (opp) => {
       const result = await executor.execute(opp);
