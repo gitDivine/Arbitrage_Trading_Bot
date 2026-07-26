@@ -188,11 +188,13 @@ export CONTRACT_ADDRESS=<deployed_address>
 1. [2026-07-25] - [IMPORTANT] - Weekend Liquidity Optimization: Added 5% and 2.5% micro-trade flash loan sizes to `scanner.ts` and lowered `minProfitBps` to 2.0 bps to capture thin weekend liquidity. WHY: User requested scaling down trade sizes to monetize thin liquidity periods.
 2. [2026-07-25] - [IMPORTANT] - Profit Consolidation & Sweep: Created `src/consolidate.ts` and added `/sweep` command to sweep accumulated contract profits across Base and Arbitrum to the owner wallet. WHY: Contract profits accumulated without an automated sweep mechanism.
 3. [2026-07-26] - [CRITICAL] - Uniswap V3 QuoterV2 Precision Integration (v4 Issue 4): Refactored `batchGetQuotes` and `getOnChainQuote` in `scanner.ts` and updated `config.ts` to route quotes to specific Quoter contracts (`camelotV3Quoter`, `ramsesQuoter`, `uniswapV3QuoterV2`) with correct ABIs (`ALGEBRA_QUOTER_ABI` vs `UNI_V3_QUOTER_V2_ABI`). WHY: Hardcoded UniV3 QuoterV2 calls for Camelot and Ramses caused reverts and inaccurate quotes, resulting in near-miss trades (e.g. -$0.0124 AERO).
+4. [2026-07-26] - [CRITICAL] - Fee Tier Discovery & Multi-Listener Stacking Fixes: In `scanner.ts`, updated fee discovery to check `pair.fee` (the configured canonical fee tier) first before falling back to `[500, 3000, 10000, 100]`. Added `removeAllListeners` cleanup in `setupPoolSubscription()` and `reconnect()` and deduplicated `poolMeta`. WHY: Scanner previously bound to empty 1bps dust pools for VIRTUAL, AERO, cbBTC, ARB, WBTC, GMX, causing Multicall out-of-gas reverts (`CALL_EXCEPTION`) and quote failures. Reconnecting without cleaning up old listeners caused 6+ identical listeners per pool, spamming RPCs with duplicate price fetches and triggering `429 Limit Exceeded`.
 
 ---
 
 ## Latest Summary
-- **Current Focus:** Testing and verifying Uniswap V3 QuoterV2 Precision Integration (v4 Issue 4) in production.
-- **Last Action Taken:** Refactored `batchGetQuotes` and `getOnChainQuote` in `src/scanner.ts` and updated `src/config.ts` with dedicated Quoter addresses for Camelot and Ramses on Arbitrum. Compiled code cleanly to `dist/`.
-- **Blockers / Next Steps:** None on code side. User needs to restart bot instances (via VPS / `pm2` / `bots-manager`) to load the newly compiled QuoterV2 precision routing and monitor for positive trade execution.
+- **Current Focus:** Deploying and monitoring Fee Tier Discovery & Multi-Listener Stacking fixes in production.
+- **Last Action Taken:** Fixed `scanner.ts` to prioritize configured canonical fee tiers (`pair.fee`) and removed duplicate event listener stacking in `reconnect()` / `setupPoolSubscription()`. Compiled code cleanly using TypeScript compiler.
+- **Blockers / Next Steps:** User needs to pull latest changes on VPS (`git pull origin main`, `npm run build`, `npm start` / `pm2 restart`) to verify clean logs without `Multicall Failed` or `429 Limit Exceeded` errors.
+
 

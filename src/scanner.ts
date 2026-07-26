@@ -229,15 +229,17 @@ export class Scanner {
                 this.feeCache.set(`${dex.name}_${pair.tokenOut}`, lockedFee);
               }
             } else {
-              // Standard: prefer cheapest fee tier — scan from lowest to highest
+              // Standard: prefer configured fee tier (where deep liquidity lives) before falling back
               let actualFee = pair.fee;
-              let foundPool = ethers.ZeroAddress;
-              for (const f of [100, 500, 3000, 10000]) {
-                const addr = await factory.getPool(pair.baseToken, pair.tokenOut, f);
-                if (addr && addr !== ethers.ZeroAddress) { foundPool = addr; actualFee = f; break; }
+              let foundPool = await factory.getPool(pair.baseToken, pair.tokenOut, pair.fee);
+              if (!foundPool || foundPool === ethers.ZeroAddress) {
+                for (const f of [500, 3000, 10000, 100]) {
+                  const addr = await factory.getPool(pair.baseToken, pair.tokenOut, f);
+                  if (addr && addr !== ethers.ZeroAddress) { foundPool = addr; actualFee = f; break; }
+                }
               }
               poolAddr = foundPool;
-              // Cache the cheapest fee tier discovered on-chain
+              // Cache the fee tier discovered on-chain
               if (poolAddr && poolAddr !== ethers.ZeroAddress) {
                 this.feeCache.set(`${dex.name}_${pair.tokenOut}`, actualFee);
                 if (actualFee !== pair.fee) {
@@ -320,14 +322,20 @@ export class Scanner {
     const contract = new ethers.Contract(poolAddr, abi, this.wallet.provider);
     this.poolContracts.set(`${dexName}_${pair.tokenOut}`, contract);
 
-    // Store metadata for polling fallback
-    this.poolMeta.push({ dexName, type, poolAddr, pair });
+    // Store metadata for polling fallback without duplicate entries
+    if (!this.poolMeta.some(m => m.dexName === dexName && m.pair.tokenOut === pair.tokenOut)) {
+      this.poolMeta.push({ dexName, type, poolAddr, pair });
+    }
 
     const topic = (type === DexType.UNISWAP_V3 || type === DexType.ALGEBRA)
       ? ethers.id('Swap(address,address,int256,int256,uint160,uint128,int24)')
       : (type === DexType.SOLIDLY
         ? ethers.id('Swap(address,address,uint256,uint256,uint256,uint256)')
         : ethers.id('Swap(address,uint256,uint256,uint256,uint256,address)'));
+
+    try {
+      (this.wallet.provider as any).removeAllListeners({ address: poolAddr, topics: [topic] });
+    } catch {}
 
     this.wallet.provider.on({ address: poolAddr, topics: [topic] }, async () => {
       this.lastWsEvent = Date.now();
@@ -1095,6 +1103,9 @@ export class Scanner {
 
   private async reconnect(): Promise<void> {
     this.logger.warn('Scanner', 'Re-attaching event listeners to new WS provider...');
+    try {
+      (this.wallet.provider as any).removeAllListeners();
+    } catch {}
     let attached = 0;
     for (const meta of this.poolMeta) {
       const topic = (meta.type === DexType.UNISWAP_V3 || meta.type === DexType.ALGEBRA)
