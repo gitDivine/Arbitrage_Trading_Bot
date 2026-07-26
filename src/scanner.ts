@@ -447,7 +447,23 @@ export class Scanner {
     const calls: any[] = [];
     
     for (const req of requests) {
-      if (req.dexName.includes('V3') || (req.dexName.includes('camelot') && CONFIG.chain.chainId === 42161) || (req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161)) {
+      if (req.dexName.includes('camelot') && CONFIG.chain.chainId === 42161) {
+        const quoterAddr = (CONFIG.dexes as any).camelotV3Quoter.address;
+        const quoter = new ethers.Interface(ALGEBRA_QUOTER_ABI);
+        const calldata = quoter.encodeFunctionData('quoteExactInputSingle', [req.tokenIn, req.tokenOut, req.amountIn, 0]);
+        calls.push({ target: quoterAddr, callData: calldata });
+      } else if (req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161) {
+        const quoterAddr = (CONFIG.dexes as any).ramsesQuoter.address;
+        const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
+        const calldata = quoter.encodeFunctionData('quoteExactInputSingle', [{
+          tokenIn: req.tokenIn,
+          tokenOut: req.tokenOut,
+          amountIn: req.amountIn,
+          fee: req.fee,
+          sqrtPriceLimitX96: 0
+        }]);
+        calls.push({ target: quoterAddr, callData: calldata });
+      } else if (req.dexName.includes('V3')) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
         const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
         const calldata = quoter.encodeFunctionData('quoteExactInputSingle', [{
@@ -458,7 +474,7 @@ export class Scanner {
           sqrtPriceLimitX96: 0
         }]);
         calls.push({ target: quoterAddr, callData: calldata });
-      } else if (req.dexName.includes('aerodrome') || req.dexName.includes('ramses')) {
+      } else if (req.dexName.includes('aerodrome')) {
         const routerAddr = (CONFIG.dexes as any)[`${req.dexName}Router`].address;
         const factoryAddr = (CONFIG.dexes as any)[`${req.dexName}Factory`].address;
         const router = new ethers.Interface(AERO_ROUTER_ABI);
@@ -482,7 +498,11 @@ export class Scanner {
       return results.map((res: any, i: number) => {
         if (!res.success || res.returnData === '0x') return null;
         const req = requests[i];
-        if (req.dexName.includes('V3') || (req.dexName.includes('camelot') && CONFIG.chain.chainId === 42161) || (req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161)) {
+        if (req.dexName.includes('camelot') && CONFIG.chain.chainId === 42161) {
+          const quoter = new ethers.Interface(ALGEBRA_QUOTER_ABI);
+          const decoded = quoter.decodeFunctionResult('quoteExactInputSingle', res.returnData);
+          return decoded.amountOut;
+        } else if ((req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161) || req.dexName.includes('V3')) {
           const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
           const decoded = quoter.decodeFunctionResult('quoteExactInputSingle', res.returnData);
           return decoded.amountOut;
@@ -707,25 +727,29 @@ export class Scanner {
     try {
       const amountInBig = typeof amountIn === 'bigint' ? amountIn : ethers.parseUnits(amountIn.toString(), tokenIn === CONFIG.tokens.USDC ? 6 : (DECIMALS_CACHE.get(tokenIn) || 18));
       
-      if (dexName.includes('V3') || (dexName.includes('camelot') && CONFIG.chain.chainId === 42161) || (dexName.includes('ramses') && CONFIG.chain.chainId === 42161)) {
+      if (dexName.includes('camelot') && CONFIG.chain.chainId === 42161) {
+        const quoterAddr = (CONFIG.dexes as any).camelotV3Quoter.address;
+        const quoter = new ethers.Contract(quoterAddr, ALGEBRA_QUOTER_ABI, this.wallet.provider);
+        const quote = await quoter.quoteExactInputSingle.staticCall(tokenIn, tokenOut, amountInBig, 0);
+        return quote.amountOut;
+      } else if (dexName.includes('ramses') && CONFIG.chain.chainId === 42161) {
+        const quoterAddr = (CONFIG.dexes as any).ramsesQuoter.address;
+        const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
+        const params = { tokenIn, tokenOut, amountIn: amountInBig, fee: fee, sqrtPriceLimitX96: 0 };
+        const quote = await quoter.quoteExactInputSingle.staticCall(params);
+        return quote.amountOut;
+      } else if (dexName.includes('V3')) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
-        
-        if (dexName.includes('camelot') || dexName.includes('ramses')) {
-          const quoter = new ethers.Contract(quoterAddr, ALGEBRA_QUOTER_ABI, this.wallet.provider);
-          const quote = await quoter.quoteExactInputSingle.staticCall(tokenIn, tokenOut, amountInBig, 0);
-          return quote.amountOut;
-        } else {
-          const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
-          const params = {
-            tokenIn,
-            tokenOut,
-            amountIn: amountInBig,
-            fee: fee,
-            sqrtPriceLimitX96: 0
-          };
-          const quote = await quoter.quoteExactInputSingle.staticCall(params);
-          return quote.amountOut;
-        }
+        const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
+        const params = {
+          tokenIn,
+          tokenOut,
+          amountIn: amountInBig,
+          fee: fee,
+          sqrtPriceLimitX96: 0
+        };
+        const quote = await quoter.quoteExactInputSingle.staticCall(params);
+        return quote.amountOut;
       } 
       else if (dexName.includes('aerodrome') || dexName.includes('ramses')) {
         const routerAddr = (CONFIG.dexes as any)[`${dexName}Router`].address;

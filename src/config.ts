@@ -92,8 +92,10 @@ const CONFIG_BY_CHAIN: any = {
       uniswapV3QuoterV2: { address: addr('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'), dexType: 'uniswapV3' },
       camelotV3Router: { address: addr('0x1F721E64571A24194602120BCec23E6db1426442'), dexType: 'camelotV3' },
       camelotV3Factory: { address: addr('0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B'), dexType: 'camelotV3' },
+      camelotV3Quoter: { address: addr('0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E'), dexType: 'camelotV3' },
       ramsesRouter: { address: addr('0xAAA87963EFe74394b91747FA733E3917d68180E7'), dexType: 'ramses' },
       ramsesFactory: { address: addr('0xd0019e86edB35E1fedaaB03aED5c3c60f115d28b'), dexType: 'ramses' }, // Ramses V3 CL (correct factory)
+      ramsesQuoter: { address: addr('0x403Bf94fe505cA0F0b1563C350B57dCeC8303ECd'), dexType: 'ramses' },
       // Intra-DEX virtual DEXes — same UniV3 router/factory, fee-locked
       uniV3_500Router: { address: addr('0xE592427A0AEce92De3Edee1F18E0157C05861564'), dexType: 'uniswapV3' },
       uniV3_500Factory: { address: addr('0x1F98431c8aD98523631AE4a59f267346ea31F984'), dexType: 'uniswapV3' },
