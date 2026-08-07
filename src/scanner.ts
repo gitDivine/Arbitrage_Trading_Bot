@@ -472,7 +472,7 @@ export class Scanner {
           sqrtPriceLimitX96: 0
         }]);
         calls.push({ target: quoterAddr, callData: calldata });
-      } else if (req.dexName.includes('V3')) {
+      } else if (req.dexName.toLowerCase().includes('v3') || req.dexName.toLowerCase().includes('uniswap')) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
         const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
         const calldata = quoter.encodeFunctionData('quoteExactInputSingle', [{
@@ -483,7 +483,7 @@ export class Scanner {
           sqrtPriceLimitX96: 0
         }]);
         calls.push({ target: quoterAddr, callData: calldata });
-      } else if (req.dexName.includes('aerodrome')) {
+      } else if (req.dexName.toLowerCase().includes('aerodrome')) {
         const routerAddr = (CONFIG.dexes as any)[`${req.dexName}Router`].address;
         const factoryAddr = (CONFIG.dexes as any)[`${req.dexName}Factory`].address;
         const router = new ethers.Interface(AERO_ROUTER_ABI);
@@ -511,7 +511,7 @@ export class Scanner {
           const quoter = new ethers.Interface(ALGEBRA_QUOTER_ABI);
           const decoded = quoter.decodeFunctionResult('quoteExactInputSingle', res.returnData);
           return decoded.amountOut;
-        } else if ((req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161) || req.dexName.includes('V3')) {
+        } else if ((req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161) || req.dexName.toLowerCase().includes('v3') || req.dexName.toLowerCase().includes('uniswap')) {
           const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
           const decoded = quoter.decodeFunctionResult('quoteExactInputSingle', res.returnData);
           return decoded.amountOut;
