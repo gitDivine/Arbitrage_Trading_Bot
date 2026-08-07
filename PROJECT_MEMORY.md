@@ -193,10 +193,11 @@ export CONTRACT_ADDRESS=<deployed_address>
 ### Session: 2026-08-07 — Codex Agent
 **Done:**
 5. [2026-08-07] - [CRITICAL] - Low-Fee Pool & Volatile Mid-Cap Expansion (Fix 1 & 2): In `config.ts`, added 1bps fee tier virtual DEXes (`uniV3_100`), added high-volume 5bps (0.05%) and 1bps (0.01%) WETH/USDC, cbBTC, AERO, VIRTUAL, and ARB pools, and added high-liquidity (> $500k TVL) mid-cap tokens `BRETT` (Base) and `GRAIL` (Arbitrum). WHY: 30bps pool arbs require > 65bps raw gap to cover 60bps DEX swap fees + 5bps flash loan fee. 5bps/1bps pools reduce swap friction to 10-15bps, making 25-30bps raw price gaps immediately net-profitable!
+6. [2026-08-07] - [CRITICAL] - Case-Insensitive Quoter Matching & Resilient Quote Fallback: Fixed case-sensitivity for `v3` / `uniswap` virtual DEX names in `batchGetQuotes()` and `getOnChainQuote()`. Added `Promise.all` fallback to query quotes individually when batched Multicall staticCall encounters RPC-level revert exceptions on thin/uninitialized pools. WHY: RPC nodes (e.g., Base public nodes) return empty `0x` revert buffers when a single QuoterV2 call inside `tryAggregate` reverts, failing the entire Multicall batch. Individual fallback ensures valid pool quotes succeed cleanly.
 
 ---
 
 ## Latest Summary
-- **Current Focus:** Deploying 1bps/5bps low-fee pool and liquid mid-cap token expansion (`BRETT`, `GRAIL`, `PENDLE`) to capture positive net yield arbs.
-- **Last Action Taken:** Updated `config.ts` with 5bps & 1bps WETH-USDC pools, 1bps virtual DEX routing, and high-volume mid-cap tokens. Compiled cleanly and pushed to `origin/main`.
-- **Next Steps:** User pulls update on VPS (`git pull origin main && npm run build && pm2 restart all`) and monitors for first net-positive trade execution.
+- **Current Focus:** Resilient QuoterV2 execution and 1bps/5bps low-fee pool arbitrage monitoring.
+- **Last Action Taken:** Added case-insensitive `v3`/`uniswap` quoter matching and individual quote fallback for Multicall3 exceptions. Pushed cleanly to `origin/main` (`8e87e53`).
+- **Next Steps:** User pulls latest update on VPS (`git pull origin main && npm run build && npm start`) to verify clean, error-free quote execution on low-fee pools.
