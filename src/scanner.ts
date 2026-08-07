@@ -210,12 +210,18 @@ export class Scanner {
         }
         else if (dex.type === DexType.UNISWAP_V3) {
           const isRamses = dex.name.toLowerCase().includes('ramses');
-          if (isRamses) {
-            // Ramses V3 CL uses tick spacing (int24), not fee tier — common: 10, 60, 200
+          const isSlipstream = dex.name.toLowerCase().includes('slipstream');
+          if (isRamses || isSlipstream) {
+            // Concentrated Liquidity (Ramses & Aerodrome Slipstream) uses tick spacing (int24): 1, 5, 10, 50, 60, 100, 200
             const factory = new ethers.Contract(dex.factory, RAMSES_FACTORY_ABI, this.wallet.provider);
-            for (const ts of [10, 60, 200]) {
-              poolAddr = await factory.getPool(pair.baseToken, pair.tokenOut, ts);
-              if (poolAddr && poolAddr !== ethers.ZeroAddress) break;
+            for (const ts of [1, 5, 10, 50, 60, 100, 200]) {
+              try {
+                poolAddr = await factory.getPool(pair.baseToken, pair.tokenOut, ts);
+                if (poolAddr && poolAddr !== ethers.ZeroAddress) {
+                  this.feeCache.set(`${dex.name}_${pair.tokenOut}`, ts);
+                  break;
+                }
+              } catch {}
             }
           } else {
             const factory = new ethers.Contract(dex.factory, UNI_V3_FACTORY_ABI, this.wallet.provider);
@@ -472,7 +478,7 @@ export class Scanner {
           sqrtPriceLimitX96: 0
         }]);
         calls.push({ target: quoterAddr, callData: calldata });
-      } else if (req.dexName.toLowerCase().includes('v3') || req.dexName.toLowerCase().includes('uniswap')) {
+      } else if (req.dexName.toLowerCase().includes('v3') || req.dexName.toLowerCase().includes('uniswap') || req.dexName.toLowerCase().includes('slipstream')) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
         const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
         const calldata = quoter.encodeFunctionData('quoteExactInputSingle', [{
@@ -511,7 +517,7 @@ export class Scanner {
           const quoter = new ethers.Interface(ALGEBRA_QUOTER_ABI);
           const decoded = quoter.decodeFunctionResult('quoteExactInputSingle', res.returnData);
           return decoded.amountOut;
-        } else if ((req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161) || req.dexName.toLowerCase().includes('v3') || req.dexName.toLowerCase().includes('uniswap')) {
+        } else if ((req.dexName.includes('ramses') && CONFIG.chain.chainId === 42161) || req.dexName.toLowerCase().includes('v3') || req.dexName.toLowerCase().includes('uniswap') || req.dexName.toLowerCase().includes('slipstream')) {
           const quoter = new ethers.Interface(UNI_V3_QUOTER_V2_ABI);
           const decoded = quoter.decodeFunctionResult('quoteExactInputSingle', res.returnData);
           return decoded.amountOut;
@@ -692,15 +698,15 @@ export class Scanner {
     const factoryInfo = config[`${dexName}Factory`];
     const routerInfo = config[`${dexName}Router`];
 
-    if (dexName.includes('V3') || dexName.includes('camelot')) {
+    if (dexName.toLowerCase().includes('v3') || dexName.toLowerCase().includes('camelot') || dexName.toLowerCase().includes('uniswap') || dexName.toLowerCase().includes('slipstream')) {
       return {
         router: routerInfo.address,
-        dexType: (dexName.includes('camelot') || factoryInfo.dexType === 'camelotV3') ? DexType.ALGEBRA : DexType.UNISWAP_V3,
+        dexType: (dexName.toLowerCase().includes('camelot') || factoryInfo.dexType === 'camelotV3') ? DexType.ALGEBRA : DexType.UNISWAP_V3,
         fee: defaultFee,
         stable: false,
         factory: ethers.ZeroAddress
       };
-    } else if (dexName.includes('aerodrome') || dexName.includes('ramses')) {
+    } else if (dexName.toLowerCase().includes('aerodrome') || dexName.toLowerCase().includes('ramses')) {
       return {
         router: routerInfo.address,
         dexType: DexType.SOLIDLY,
@@ -749,7 +755,7 @@ export class Scanner {
         const params = { tokenIn, tokenOut, amountIn: amountInBig, fee: fee, sqrtPriceLimitX96: 0 };
         const quote = await quoter.quoteExactInputSingle.staticCall(params);
         return quote.amountOut;
-      } else if (dexName.toLowerCase().includes('v3') || dexName.toLowerCase().includes('uniswap')) {
+      } else if (dexName.toLowerCase().includes('v3') || dexName.toLowerCase().includes('uniswap') || dexName.toLowerCase().includes('slipstream')) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
         const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
         const params = {
