@@ -675,13 +675,16 @@ export class Scanner {
           this.phantomStrikes.set(q.pair.tokenOut, currentStrikes);
 
           if (quotedResults.length > 0) {
-            const best = quotedResults.sort((a: any, b: any) => b.realProfit - a.realProfit)[0];
+            const withBps = quotedResults.map((r: any) => {
+              const flashAmt = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * r.factor;
+              const nearBps = (r.realProfit / flashAmt) * 10000;
+              return { ...r, flashAmt, nearBps };
+            });
+            const best = withBps.sort((a: any, b: any) => b.nearBps - a.nearBps)[0];
             const sizeLabel = best.factor === 1.0 ? 'FULL' : `${best.factor * 100}%`;
-            const flashAmt = (isUsdc ? CONFIG.arb.flashLoanAmountUsdc : CONFIG.arb.flashLoanAmountWeth) * best.factor;
-            const nearBps = (best.realProfit / flashAmt) * 10000;
-            this.metrics.recordNearMiss(q.pair.name, sizeLabel, best.realProfit, nearBps);
+            this.metrics.recordNearMiss(q.pair.name, sizeLabel, best.realProfit, best.nearBps);
             const strikeInfo = currentStrikes >= 3 ? ` [strike ${currentStrikes}/${this.PHANTOM_STRIKE_LIMIT}]` : '';
-            this.logger.warn('Scanner', `Near-miss: ${q.pair.name} [${sizeLabel}] | $${best.realProfit.toFixed(4)} (${nearBps.toFixed(1)}bps)${strikeInfo}`);
+            this.logger.warn('Scanner', `Near-miss: ${q.pair.name} [${sizeLabel}] | $${best.realProfit.toFixed(4)} (${best.nearBps.toFixed(1)}bps)${strikeInfo}`);
           } else {
             this.logger.warn('Scanner', `❌ Quote fail: ${q.pair.name} | All sizes failed [strike ${currentStrikes}/${this.PHANTOM_STRIKE_LIMIT}]`);
           }
