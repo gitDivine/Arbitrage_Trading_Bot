@@ -28,6 +28,8 @@ const CONFIG_BY_CHAIN: any = {
       aerodromeRouter: { address: addr('0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43'), dexType: 'aerodrome' },
       aerodromeFactory: { address: addr('0x420DD381b31aEf6683db6B902084cB0FFECe40Da'), dexType: 'aerodrome' },
       // Intra-DEX virtual DEXes — same router/factory, fee-locked
+      uniV3_100Router: { address: addr('0x2626664c2603336E57B271c5C0b26F421741e481'), dexType: 'uniswapV3' },
+      uniV3_100Factory: { address: addr('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'), dexType: 'uniswapV3' },
       uniV3_500Router: { address: addr('0x2626664c2603336E57B271c5C0b26F421741e481'), dexType: 'uniswapV3' },
       uniV3_500Factory: { address: addr('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'), dexType: 'uniswapV3' },
       uniV3_3000Router: { address: addr('0x2626664c2603336E57B271c5C0b26F421741e481'), dexType: 'uniswapV3' },
@@ -40,18 +42,26 @@ const CONFIG_BY_CHAIN: any = {
       flashFee: 0.0005,
     },
     watchPairs: [
-      { tokenOut: addr('0x940181a94A35A4569E4529A3CDfB74e38FD98631'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 3000, name: 'AERO' },
-      { tokenOut: addr('0xdcc822276d4e6bac33bfb1bad287f2b9b9f877a6'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 3000, name: 'WELL' },
-      { tokenOut: addr('0xcbB7C0000ab88b473b1f5afd9ef808440eed33Bf'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 500, name: 'cbBTC' },
-      { tokenOut: addr('0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 3000, name: 'VIRTUAL' },
-      { tokenOut: addr('0x8c9037d1ef5c6d1f6816278c7aaf5491d24cd527'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 3000, name: 'MOXIE' },
-      { tokenOut: addr('0xb794705e505299B7fF661B677EA9EE473254a5bf'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 10000, name: 'MAGA' },
+      // --- Low Fee Tier & High Volume Majors (1bps & 5bps pools — 10-15bps total friction) ---
+      { tokenOut: addr('0x4200000000000000000000000000000000000006'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 500,  name: 'WETH-USDC-5bps' }, // 5bps UniV3 WETH/USDC ($50M+ TVL)
+      { tokenOut: addr('0x4200000000000000000000000000000000000006'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 100,  name: 'WETH-USDC-1bps' }, // 1bps UniV3 WETH/USDC
+      { tokenOut: addr('0xcbB7C0000ab88b473b1f5afd9ef808440eed33Bf'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 500,  name: 'cbBTC-5bps'     }, // 5bps cbBTC/WETH
+      { tokenOut: addr('0x940181a94A35A4569E4529A3CDfB74e38FD98631'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 500,  name: 'AERO-5bps'      }, // 5bps AERO/USDC
+      { tokenOut: addr('0x940181a94A35A4569E4529A3CDfB74e38FD98631'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 3000, name: 'AERO'           },
+      { tokenOut: addr('0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 500,  name: 'VIRTUAL-5bps'   }, // 5bps VIRTUAL/WETH
+      { tokenOut: addr('0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 3000, name: 'VIRTUAL'        },
+      // --- Volatile Liquid Mid-Caps (>$500k TVL) ---
+      { tokenOut: addr('0x532f27101965dd16442E59d40670FaF5ebb142E4'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 3000, name: 'BRETT'          }, // BRETT/WETH ($1M+ TVL)
+      { tokenOut: addr('0x8c9037d1ef5c6d1f6816278c7aaf5491d24cd527'), baseToken: addr('0x4200000000000000000000000000000000000006'), fee: 3000, name: 'MOXIE'          },
+      { tokenOut: addr('0xdcc822276d4e6bac33bfb1bad287f2b9b9f877a6'), baseToken: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), fee: 3000, name: 'WELL'           },
     ],
     surfaces: [
       // Cross-DEX surfaces
       { name: 'UniV3_Aero_USDC', dex1: 'uniswapV3', dex2: 'aerodrome', baseAsset: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
       { name: 'UniV3_Aero_WETH', dex1: 'uniswapV3', dex2: 'aerodrome', baseAsset: addr('0x4200000000000000000000000000000000000006') },
-      // Intra-DEX surfaces — same DEX, different fee tiers
+      // Intra-DEX surfaces — fee tier arbs (1bps vs 5bps vs 30bps)
+      { name: 'IntraDex_100v500_WETH',  dex1: 'uniV3_100', dex2: 'uniV3_500',  baseAsset: addr('0x4200000000000000000000000000000000000006') },
+      { name: 'IntraDex_100v500_USDC',  dex1: 'uniV3_100', dex2: 'uniV3_500',  baseAsset: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
       { name: 'IntraDex_500v3000_USDC', dex1: 'uniV3_500', dex2: 'uniV3_3000', baseAsset: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
       { name: 'IntraDex_500v3000_WETH', dex1: 'uniV3_500', dex2: 'uniV3_3000', baseAsset: addr('0x4200000000000000000000000000000000000006') },
       { name: 'IntraDex_500v10000_WETH', dex1: 'uniV3_500', dex2: 'uniV3_10000', baseAsset: addr('0x4200000000000000000000000000000000000006') },
@@ -81,10 +91,7 @@ const CONFIG_BY_CHAIN: any = {
       LINK: addr('0xf97f4df75117a78c1A5a0ADb814Af6572A704043'),
       DAI: addr('0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'),
       UNI: addr('0xFa7F8980b0f1E61820213B524858178473450946'),
-      FRAX: addr('0x17FCB690CC242d99b03f05f884a4411139A8659F'),
-      LDO: addr('0x13Ad51ed4F1B7e9Dc168d8a00cB3f4dDD85EfA60'),
-      GNS: addr('0x18c11FD274C5ca9a7Ec216269FE82fEAED3D6191'),
-      CRV: addr('0x11cDb42B0EB44893576E3774032a1df6A8dEf85c'),
+      GRAIL: addr('0x3d9907F9a368AD0a51Be60f7Da3b97cf940982D8'),
     },
     dexes: {
       uniswapV3Router: { address: addr('0xE592427A0AEce92De3Edee1F18E0157C05861564'), dexType: 'uniswapV3' },
@@ -97,6 +104,8 @@ const CONFIG_BY_CHAIN: any = {
       ramsesFactory: { address: addr('0xd0019e86edB35E1fedaaB03aED5c3c60f115d28b'), dexType: 'ramses' }, // Ramses V3 CL (correct factory)
       ramsesQuoter: { address: addr('0x403Bf94fe505cA0F0b1563C350B57dCeC8303ECd'), dexType: 'ramses' },
       // Intra-DEX virtual DEXes — same UniV3 router/factory, fee-locked
+      uniV3_100Router: { address: addr('0xE592427A0AEce92De3Edee1F18E0157C05861564'), dexType: 'uniswapV3' },
+      uniV3_100Factory: { address: addr('0x1F98431c8aD98523631AE4a59f267346ea31F984'), dexType: 'uniswapV3' },
       uniV3_500Router: { address: addr('0xE592427A0AEce92De3Edee1F18E0157C05861564'), dexType: 'uniswapV3' },
       uniV3_500Factory: { address: addr('0x1F98431c8aD98523631AE4a59f267346ea31F984'), dexType: 'uniswapV3' },
       uniV3_3000Router: { address: addr('0xE592427A0AEce92De3Edee1F18E0157C05861564'), dexType: 'uniswapV3' },
@@ -109,19 +118,19 @@ const CONFIG_BY_CHAIN: any = {
       flashFee: 0.0005,
     },
     watchPairs: [
-      // --- High-confidence Camelot pairs (confirmed liquidity from discovery) ---
-      { tokenOut: addr('0x912CE59144191C1204E64559FE8253a0e49E6548'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'ARB'       }, // ARB/USDC  — Camelot $2.4M vol
-      { tokenOut: addr('0x912CE59144191C1204E64559FE8253a0e49E6548'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 3000, name: 'ARB-WETH'  }, // ARB/WETH  — Camelot $1.7M vol
-      { tokenOut: addr('0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'WBTC-USDC' }, // WBTC/USDC — Camelot $130k vol
-      { tokenOut: addr('0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 500,  name: 'WBTC'      }, // WBTC/WETH — Camelot $118k liq
-      { tokenOut: addr('0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 3000, name: 'GMX-USDC'  }, // GMX/USDC  — native Arb token
-      { tokenOut: addr('0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 3000, name: 'GMX'       }, // GMX/WETH  — native Arb token
-      { tokenOut: addr('0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'DAI'       }, // DAI/USDC  — Camelot $130k vol
-      // --- Secondary pairs (Uni V3 only — kept for price signal) ---
-      { tokenOut: addr('0x0C4681e6C0235179ec3D4F4fc4DF3d14FDD96017'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 3000, name: 'RDNT'      },
-      { tokenOut: addr('0x0c888319139947844059639149183cc48b11166b'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 3000, name: 'PENDLE'    },
-      { tokenOut: addr('0xf97f4df75117a78c1A5a0ADb814Af6572A704043'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 3000, name: 'LINK'      },
-      { tokenOut: addr('0x13Ad51ed4F1B7e9Dc168d8a00cB3f4dDD85EfA60'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 3000, name: 'LDO'       },
+      // --- Low Fee Tier & High Volume Majors (1bps & 5bps pools — 10-15bps total friction) ---
+      { tokenOut: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'WETH-USDC-5bps' }, // 5bps UniV3 WETH/USDC ($100M+ TVL)
+      { tokenOut: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 100,  name: 'WETH-USDC-1bps' }, // 1bps UniV3 WETH/USDC
+      { tokenOut: addr('0x912CE59144191C1204E64559FE8253a0e49E6548'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'ARB-5bps'       }, // ARB/USDC 5bps ($2.4M Camelot vs UniV3)
+      { tokenOut: addr('0x912CE59144191C1204E64559FE8253a0e49E6548'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 500,  name: 'ARB-WETH-5bps'  },
+      { tokenOut: addr('0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'WBTC-USDC'      }, // WBTC/USDC 5bps
+      { tokenOut: addr('0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 500,  name: 'WBTC'           }, // WBTC/WETH 5bps
+      { tokenOut: addr('0x0c888319139947844059639149183cc48b11166b'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'PENDLE-5bps'    }, // PENDLE 5bps
+      // --- Volatile Liquid Native & Mid-Cap Tokens (>$500k TVL) ---
+      { tokenOut: addr('0x0c888319139947844059639149183cc48b11166b'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 3000, name: 'PENDLE'        },
+      { tokenOut: addr('0x3d9907F9a368AD0a51Be60f7Da3b97cf940982D8'), baseToken: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11'), fee: 3000, name: 'GRAIL'         }, // GRAIL/WETH ($1M+ TVL)
+      { tokenOut: addr('0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 3000, name: 'GMX-USDC'       },
+      { tokenOut: addr('0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'), baseToken: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831'), fee: 500,  name: 'DAI'            },
     ],
     surfaces: [
       // Cross-DEX surfaces
@@ -129,7 +138,9 @@ const CONFIG_BY_CHAIN: any = {
       { name: 'UniV3_Camelot_WETH', dex1: 'uniswapV3', dex2: 'camelotV3', baseAsset: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11') },
       { name: 'UniV3_Ramses_USDC',  dex1: 'uniswapV3', dex2: 'ramses',    baseAsset: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831') },
       { name: 'UniV3_Ramses_WETH',  dex1: 'uniswapV3', dex2: 'ramses',    baseAsset: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11') },
-      // Intra-DEX surfaces — same UniV3, different fee tiers
+      // Intra-DEX surfaces — fee tier arbs (1bps vs 5bps vs 30bps)
+      { name: 'IntraDex_100v500_WETH',  dex1: 'uniV3_100', dex2: 'uniV3_500',  baseAsset: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11') },
+      { name: 'IntraDex_100v500_USDC',  dex1: 'uniV3_100', dex2: 'uniV3_500',  baseAsset: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831') },
       { name: 'IntraDex_500v3000_USDC', dex1: 'uniV3_500', dex2: 'uniV3_3000', baseAsset: addr('0xaf88d065e77c8cC2239327C5EDb3A432268e5831') },
       { name: 'IntraDex_500v3000_WETH', dex1: 'uniV3_500', dex2: 'uniV3_3000', baseAsset: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11') },
       { name: 'IntraDex_500v10000_WETH', dex1: 'uniV3_500', dex2: 'uniV3_10000', baseAsset: addr('0x82aF49447D8a07e3bd95BD0d56f352415231aA11') },
