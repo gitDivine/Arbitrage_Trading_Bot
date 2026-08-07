@@ -194,10 +194,11 @@ export CONTRACT_ADDRESS=<deployed_address>
 **Done:**
 5. [2026-08-07] - [CRITICAL] - Low-Fee Pool & Volatile Mid-Cap Expansion (Fix 1 & 2): In `config.ts`, added 1bps fee tier virtual DEXes (`uniV3_100`), added high-volume 5bps (0.05%) and 1bps (0.01%) WETH/USDC, cbBTC, AERO, VIRTUAL, and ARB pools, and added high-liquidity (> $500k TVL) mid-cap tokens `BRETT` (Base) and `GRAIL` (Arbitrum). WHY: 30bps pool arbs require > 65bps raw gap to cover 60bps DEX swap fees + 5bps flash loan fee. 5bps/1bps pools reduce swap friction to 10-15bps, making 25-30bps raw price gaps immediately net-profitable!
 6. [2026-08-07] - [CRITICAL] - Case-Insensitive Quoter Matching & Resilient Quote Fallback: Fixed case-sensitivity for `v3` / `uniswap` virtual DEX names in `batchGetQuotes()` and `getOnChainQuote()`. Added `Promise.all` fallback to query quotes individually when batched Multicall staticCall encounters RPC-level revert exceptions on thin/uninitialized pools. WHY: RPC nodes (e.g., Base public nodes) return empty `0x` revert buffers when a single QuoterV2 call inside `tryAggregate` reverts, failing the entire Multicall batch. Individual fallback ensures valid pool quotes succeed cleanly.
+7. [2026-08-07] - [CRITICAL] - Aerodrome Slipstream (CL) Integration: Added Aerodrome Slipstream Concentrated Liquidity (`slipstreamRouter` / `slipstreamFactory`) and cross-DEX surfaces `UniV3_Slipstream_USDC` & `UniV3_Slipstream_WETH` in `config.ts`. WHY: Standard Aerodrome V2 uses 30bps fee for volatile pairs (WETH/USDC). Slipstream CL pools use 1bps/5bps fee tiers, bringing cross-DEX friction down from 40bps to 15bps (5bps Slipstream + 5bps UniV3 + 5bps Aave), making 40bps+ raw gaps immediately net-profitable!
 
 ---
 
 ## Latest Summary
-- **Current Focus:** Resilient QuoterV2 execution and 1bps/5bps low-fee pool arbitrage monitoring.
-- **Last Action Taken:** Added case-insensitive `v3`/`uniswap` quoter matching and individual quote fallback for Multicall3 exceptions. Pushed cleanly to `origin/main` (`8e87e53`).
-- **Next Steps:** User pulls latest update on VPS (`git pull origin main && npm run build && npm start`) to verify clean, error-free quote execution on low-fee pools.
+- **Current Focus:** Monitoring Aerodrome Slipstream CL 1bps/5bps & Uniswap V3 low-fee arbitrage opportunities.
+- **Last Action Taken:** Added Aerodrome Slipstream CL router/factory and cross-DEX surfaces (`UniV3_Slipstream_*`) in `config.ts`. Compiled cleanly and pushed to `origin/main` (`33a16ef`).
+- **Next Steps:** User pulls latest update on VPS (`git pull origin main && npm run build && npm start`) to monitor net-positive Slipstream vs UniV3 arbitrage execution.
