@@ -190,11 +190,13 @@ export CONTRACT_ADDRESS=<deployed_address>
 3. [2026-07-26] - [CRITICAL] - Uniswap V3 QuoterV2 Precision Integration (v4 Issue 4): Refactored `batchGetQuotes` and `getOnChainQuote` in `scanner.ts` and updated `config.ts` to route quotes to specific Quoter contracts (`camelotV3Quoter`, `ramsesQuoter`, `uniswapV3QuoterV2`) with correct ABIs (`ALGEBRA_QUOTER_ABI` vs `UNI_V3_QUOTER_V2_ABI`). WHY: Hardcoded UniV3 QuoterV2 calls for Camelot and Ramses caused reverts and inaccurate quotes, resulting in near-miss trades (e.g. -$0.0124 AERO).
 4. [2026-07-26] - [CRITICAL] - Fee Tier Discovery & Multi-Listener Stacking Fixes: In `scanner.ts`, updated fee discovery to check `pair.fee` (the configured canonical fee tier) first before falling back to `[500, 3000, 10000, 100]`. Added `removeAllListeners` cleanup in `setupPoolSubscription()` and `reconnect()` and deduplicated `poolMeta`. WHY: Scanner previously bound to empty 1bps dust pools for VIRTUAL, AERO, cbBTC, ARB, WBTC, GMX, causing Multicall out-of-gas reverts (`CALL_EXCEPTION`) and quote failures. Reconnecting without cleaning up old listeners caused 6+ identical listeners per pool, spamming RPCs with duplicate price fetches and triggering `429 Limit Exceeded`.
 
+### Session: 2026-08-07 — Codex Agent
+**Done:**
+5. [2026-08-07] - [CRITICAL] - Low-Fee Pool & Volatile Mid-Cap Expansion (Fix 1 & 2): In `config.ts`, added 1bps fee tier virtual DEXes (`uniV3_100`), added high-volume 5bps (0.05%) and 1bps (0.01%) WETH/USDC, cbBTC, AERO, VIRTUAL, and ARB pools, and added high-liquidity (> $500k TVL) mid-cap tokens `BRETT` (Base) and `GRAIL` (Arbitrum). WHY: 30bps pool arbs require > 65bps raw gap to cover 60bps DEX swap fees + 5bps flash loan fee. 5bps/1bps pools reduce swap friction to 10-15bps, making 25-30bps raw price gaps immediately net-profitable!
+
 ---
 
 ## Latest Summary
-- **Current Focus:** Deploying and monitoring Fee Tier Discovery & Multi-Listener Stacking fixes in production.
-- **Last Action Taken:** Fixed `scanner.ts` to prioritize configured canonical fee tiers (`pair.fee`) and removed duplicate event listener stacking in `reconnect()` / `setupPoolSubscription()`. Compiled code cleanly using TypeScript compiler.
-- **Blockers / Next Steps:** User needs to pull latest changes on VPS (`git pull origin main`, `npm run build`, `npm start` / `pm2 restart`) to verify clean logs without `Multicall Failed` or `429 Limit Exceeded` errors.
-
-
+- **Current Focus:** Deploying 1bps/5bps low-fee pool and liquid mid-cap token expansion (`BRETT`, `GRAIL`, `PENDLE`) to capture positive net yield arbs.
+- **Last Action Taken:** Updated `config.ts` with 5bps & 1bps WETH-USDC pools, 1bps virtual DEX routing, and high-volume mid-cap tokens. Compiled cleanly and pushed to `origin/main`.
+- **Next Steps:** User pulls update on VPS (`git pull origin main && npm run build && pm2 restart all`) and monitors for first net-positive trade execution.
