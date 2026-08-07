@@ -523,8 +523,10 @@ export class Scanner {
         }
       });
     } catch (e: any) {
-      this.logger.error('Scanner', `Multicall Failed: ${e.message}`);
-      return requests.map(() => null);
+      // Fallback: if batched Multicall staticCall fails at RPC level due to thin liquidity / QuoterV2 revert, query requests individually
+      return Promise.all(
+        requests.map(req => this.getOnChainQuote(req.dexName, req.tokenIn, req.tokenOut, req.amountIn, req.fee))
+      );
     }
   }
 
@@ -736,18 +738,18 @@ export class Scanner {
     try {
       const amountInBig = typeof amountIn === 'bigint' ? amountIn : ethers.parseUnits(amountIn.toString(), tokenIn === CONFIG.tokens.USDC ? 6 : (DECIMALS_CACHE.get(tokenIn) || 18));
       
-      if (dexName.includes('camelot') && CONFIG.chain.chainId === 42161) {
+      if (dexName.toLowerCase().includes('camelot') && CONFIG.chain.chainId === 42161) {
         const quoterAddr = (CONFIG.dexes as any).camelotV3Quoter.address;
         const quoter = new ethers.Contract(quoterAddr, ALGEBRA_QUOTER_ABI, this.wallet.provider);
         const quote = await quoter.quoteExactInputSingle.staticCall(tokenIn, tokenOut, amountInBig, 0);
         return quote.amountOut;
-      } else if (dexName.includes('ramses') && CONFIG.chain.chainId === 42161) {
+      } else if (dexName.toLowerCase().includes('ramses') && CONFIG.chain.chainId === 42161) {
         const quoterAddr = (CONFIG.dexes as any).ramsesQuoter.address;
         const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
         const params = { tokenIn, tokenOut, amountIn: amountInBig, fee: fee, sqrtPriceLimitX96: 0 };
         const quote = await quoter.quoteExactInputSingle.staticCall(params);
         return quote.amountOut;
-      } else if (dexName.includes('V3')) {
+      } else if (dexName.toLowerCase().includes('v3') || dexName.toLowerCase().includes('uniswap')) {
         const quoterAddr = (CONFIG.dexes as any).uniswapV3QuoterV2.address;
         const quoter = new ethers.Contract(quoterAddr, UNI_V3_QUOTER_V2_ABI, this.wallet.provider);
         const params = {
@@ -760,7 +762,7 @@ export class Scanner {
         const quote = await quoter.quoteExactInputSingle.staticCall(params);
         return quote.amountOut;
       } 
-      else if (dexName.includes('aerodrome') || dexName.includes('ramses')) {
+      else if (dexName.toLowerCase().includes('aerodrome') || dexName.toLowerCase().includes('ramses')) {
         const routerAddr = (CONFIG.dexes as any)[`${dexName}Router`].address;
         const factoryAddr = (CONFIG.dexes as any)[`${dexName}Factory`].address;
         const router = new ethers.Contract(routerAddr, AERO_ROUTER_ABI, this.wallet.provider);
