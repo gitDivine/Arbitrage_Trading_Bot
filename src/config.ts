@@ -27,6 +27,9 @@ const CONFIG_BY_CHAIN: any = {
       uniswapV3QuoterV2: { address: addr('0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'), dexType: 'uniswapV3' },
       aerodromeRouter: { address: addr('0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43'), dexType: 'aerodrome' },
       aerodromeFactory: { address: addr('0x420DD381b31aEf6683db6B902084cB0FFECe40Da'), dexType: 'aerodrome' },
+      // Aerodrome Slipstream (Concentrated Liquidity 1bps/5bps V3 pools)
+      slipstreamRouter: { address: addr('0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5'), dexType: 'uniswapV3' },
+      slipstreamFactory: { address: addr('0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A'), dexType: 'uniswapV3' },
       // Intra-DEX virtual DEXes — same router/factory, fee-locked
       uniV3_100Router: { address: addr('0x2626664c2603336E57B271c5C0b26F421741e481'), dexType: 'uniswapV3' },
       uniV3_100Factory: { address: addr('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'), dexType: 'uniswapV3' },
@@ -59,6 +62,8 @@ const CONFIG_BY_CHAIN: any = {
       // Cross-DEX surfaces
       { name: 'UniV3_Aero_USDC', dex1: 'uniswapV3', dex2: 'aerodrome', baseAsset: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
       { name: 'UniV3_Aero_WETH', dex1: 'uniswapV3', dex2: 'aerodrome', baseAsset: addr('0x4200000000000000000000000000000000000006') },
+      { name: 'UniV3_Slipstream_USDC', dex1: 'uniswapV3', dex2: 'slipstream', baseAsset: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
+      { name: 'UniV3_Slipstream_WETH', dex1: 'uniswapV3', dex2: 'slipstream', baseAsset: addr('0x4200000000000000000000000000000000000006') },
       // Intra-DEX surfaces — fee tier arbs (1bps vs 5bps vs 30bps)
       { name: 'IntraDex_100v500_WETH',  dex1: 'uniV3_100', dex2: 'uniV3_500',  baseAsset: addr('0x4200000000000000000000000000000000000006') },
       { name: 'IntraDex_100v500_USDC',  dex1: 'uniV3_100', dex2: 'uniV3_500',  baseAsset: addr('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
